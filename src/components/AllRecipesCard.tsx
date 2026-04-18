@@ -1,17 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import type { EdamamRecipe } from "@/types/edamam";
+import type { ScrapedRecipe } from "@/types/allrecipes";
 import YouTubeButton from "./YouTubeButton";
 import { saveFavorite, removeFavorite, isFavorite } from "@/lib/storage";
 
 interface Props {
-  recipe: EdamamRecipe;
+  recipe: ScrapedRecipe;
   searchQuery: string;
 }
 
-export default function EdamamCard({ recipe, searchQuery }: Props) {
-  const id = `edamam-${encodeURIComponent(recipe.label)}`;
+export default function AllRecipesCard({ recipe, searchQuery }: Props) {
+  const id = `allrecipes-${encodeURIComponent(recipe.url)}`;
   const [fav, setFav] = useState(() => isFavorite(id));
 
   function toggleFav() {
@@ -20,8 +20,8 @@ export default function EdamamCard({ recipe, searchQuery }: Props) {
     } else {
       saveFavorite({
         id,
-        title: recipe.label,
-        source: "edamam",
+        title: recipe.title,
+        source: "allrecipes",
         thumbnail: recipe.image,
         url: recipe.url,
       });
@@ -29,14 +29,12 @@ export default function EdamamCard({ recipe, searchQuery }: Props) {
     setFav(!fav);
   }
 
-  const calories = Math.round(recipe.calories / (recipe.yield || 1));
-
   return (
     <div className="rounded-2xl bg-slate-800 overflow-hidden">
       {recipe.image && (
         <img
           src={recipe.image}
-          alt={recipe.label}
+          alt={recipe.title}
           className="w-full h-40 object-cover"
           loading="lazy"
         />
@@ -44,11 +42,12 @@ export default function EdamamCard({ recipe, searchQuery }: Props) {
       <div className="p-4 space-y-3">
         <div className="flex items-start justify-between gap-2">
           <div>
-            <h3 className="font-bold text-white leading-snug">{recipe.label}</h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              {recipe.source}
-              {calories > 0 ? ` · ${calories} kcal/serving` : ""}
-            </p>
+            <h3 className="font-bold text-white leading-snug">{recipe.title}</h3>
+            {recipe.description && (
+              <p className="text-xs text-slate-400 mt-0.5 line-clamp-2">
+                {recipe.description}
+              </p>
+            )}
           </div>
           <button
             onClick={toggleFav}
@@ -60,16 +59,6 @@ export default function EdamamCard({ recipe, searchQuery }: Props) {
             </svg>
           </button>
         </div>
-
-        {recipe.dietLabels?.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {recipe.dietLabels.slice(0, 4).map((label) => (
-              <span key={label} className="rounded-full bg-slate-700 px-2.5 py-0.5 text-xs text-slate-300">
-                {label}
-              </span>
-            ))}
-          </div>
-        )}
 
         <div className="flex gap-2 flex-wrap">
           <a

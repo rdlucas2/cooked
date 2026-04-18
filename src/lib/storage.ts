@@ -10,7 +10,7 @@ export interface RecentScan {
 export interface FavoriteRecipe {
   id: string;
   title: string;
-  source: "themealdb" | "edamam";
+  source: "themealdb" | "allrecipes";
   thumbnail?: string;
   url?: string;
   savedAt: number;
