@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, Suspense } from "react";
+import { useEffect, useState, useRef, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import MealDBCard from "@/components/MealDBCard";
 import AllRecipesCard from "@/components/AllRecipesCard";
@@ -29,20 +29,33 @@ function ResultsContent() {
   const [fallbackResults, setFallbackResults] = useState<ScrapedRecipe[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingFallback, setLoadingFallback] = useState(false);
+  const [fallbackTriggered, setFallbackTriggered] = useState(false);
   const fetchedRef = useRef<string | null>(null);
+
+  const triggerFallback = useCallback(async () => {
+    if (fallbackTriggered || loadingFallback) return;
+    setFallbackTriggered(true);
+    setLoadingFallback(true);
+    const fallback = await fetchAllRecipesFallback(query);
+    setFallbackResults(fallback);
+    setLoadingFallback(false);
+  }, [query, fallbackTriggered, loadingFallback]);
 
   useEffect(() => {
     if (!query || fetchedRef.current === query) return;
     fetchedRef.current = query;
     setLoading(true);
     setFallbackResults([]);
+    setFallbackTriggered(false);
 
     searchMeals(query).then(async (meals) => {
       setMealdbResults(meals);
       saveRecentScan(query);
       setLoading(false);
 
+      // Auto-trigger fallback only when TheMealDB has nothing
       if (meals.length === 0) {
+        setFallbackTriggered(true);
         setLoadingFallback(true);
         const fallback = await fetchAllRecipesFallback(query);
         setFallbackResults(fallback);
@@ -62,7 +75,8 @@ function ResultsContent() {
     );
   }
 
-  const showFallback = !loading && mealdbResults.length === 0;
+  const mealdbHasResults = !loading && mealdbResults.length > 0;
+  const showFallbackSection = fallbackTriggered || (!loading && mealdbResults.length === 0);
 
   return (
     <main className="flex min-h-screen flex-col items-center gap-6 px-4 py-10">
@@ -90,24 +104,35 @@ function ResultsContent() {
         </div>
       )}
 
-      {!loading && mealdbResults.length > 0 && (
+      {mealdbHasResults && (
         <section className="w-full max-w-md space-y-4">
           <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-400">
             <span className="h-px flex-1 bg-slate-700" />
             TheMealDB
             <span className="h-px flex-1 bg-slate-700" />
           </h2>
+
           {mealdbResults.slice(0, 5).map((meal) => (
             <MealDBCard key={meal.idMeal} meal={meal} searchQuery={query} />
           ))}
+
+          {/* Manual fallback trigger — user can dismiss TheMealDB results */}
+          {!fallbackTriggered && (
+            <button
+              onClick={triggerFallback}
+              className="w-full rounded-xl border border-slate-700 py-3 text-sm text-slate-400 hover:border-slate-500 hover:text-slate-300 transition"
+            >
+              None of these? Search AllRecipes →
+            </button>
+          )}
         </section>
       )}
 
-      {showFallback && (
+      {showFallbackSection && (
         <section className="w-full max-w-md space-y-4">
           <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-400">
             <span className="h-px flex-1 bg-slate-700" />
-            No TheMealDB results — trying AllRecipes…
+            {mealdbHasResults ? "AllRecipes" : "No TheMealDB results — AllRecipes"}
             <span className="h-px flex-1 bg-slate-700" />
           </h2>
 
