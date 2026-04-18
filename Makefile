@@ -1,11 +1,11 @@
 # =============================================================================
-# jobregator — Makefile
+# cooked — Makefile
 # Usage: make help
 # =============================================================================
 
-APP_NAME  ?= jobregator
+APP_NAME  ?= cooked
 IMAGE_TAG ?= latest
-PORT      ?= 8080
+PORT      ?= 3000
 REGISTRY  ?= ghcr.io/rdlucas2
 
 # Load .env if present (never commit .env — see .env.example)
