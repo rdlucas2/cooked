@@ -1,16 +1,24 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Suspense } from "react";
 import MealDBCard from "@/components/MealDBCard";
-import EdamamCard from "@/components/EdamamCard";
+import AllRecipesCard from "@/components/AllRecipesCard";
 import YouTubeButton from "@/components/YouTubeButton";
 import { searchMeals } from "@/lib/themealdb";
-import { fetchEdamamRecipes } from "@/lib/edamam";
 import { saveRecentScan } from "@/lib/storage";
 import type { Meal } from "@/types/themealdb";
-import type { EdamamHit } from "@/types/edamam";
+import type { ScrapedRecipe } from "@/types/allrecipes";
+
+async function fetchAllRecipesFallback(query: string): Promise<ScrapedRecipe[]> {
+  try {
+    const res = await fetch(`/api/recipes/allrecipes?q=${encodeURIComponent(query)}`);
+    if (!res.ok) return [];
+    return res.json();
+  } catch {
+    return [];
+  }
+}
 
 function ResultsContent() {
   const params = useSearchParams();
@@ -18,42 +26,43 @@ function ResultsContent() {
   const query = params.get("q") ?? "";
 
   const [mealdbResults, setMealdbResults] = useState<Meal[]>([]);
-  const [edamamResults, setEdamamResults] = useState<EdamamHit[]>([]);
+  const [fallbackResults, setFallbackResults] = useState<ScrapedRecipe[]>([]);
   const [loading, setLoading] = useState(true);
-  const [edamamError, setEdamamError] = useState<string | null>(null);
+  const [loadingFallback, setLoadingFallback] = useState(false);
   const fetchedRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!query || fetchedRef.current === query) return;
     fetchedRef.current = query;
     setLoading(true);
-    setEdamamError(null);
+    setFallbackResults([]);
 
-    Promise.all([
-      searchMeals(query),
-      fetchEdamamRecipes(query),
-    ]).then(([meals, edamam]) => {
+    searchMeals(query).then(async (meals) => {
       setMealdbResults(meals);
-      if ("error" in edamam) {
-        setEdamamError((edamam as { error: string }).error);
-      } else {
-        setEdamamResults(edamam.hits ?? []);
-      }
       saveRecentScan(query);
       setLoading(false);
+
+      if (meals.length === 0) {
+        setLoadingFallback(true);
+        const fallback = await fetchAllRecipesFallback(query);
+        setFallbackResults(fallback);
+        setLoadingFallback(false);
+      }
     });
   }, [query]);
 
   if (!query) {
     return (
       <div className="text-center text-slate-400 py-20">
-        No search query provided.{" "}
+        No search query.{" "}
         <button onClick={() => router.push("/scan")} className="text-orange-400 underline">
           Scan food
         </button>
       </div>
     );
   }
+
+  const showFallback = !loading && mealdbResults.length === 0;
 
   return (
     <main className="flex min-h-screen flex-col items-center gap-6 px-4 py-10">
@@ -77,60 +86,57 @@ function ResultsContent() {
       {loading && (
         <div className="flex flex-col items-center gap-3 py-16 text-slate-400">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
-          <span>Finding recipes…</span>
+          <span>Searching TheMealDB…</span>
         </div>
       )}
 
-      {!loading && (
-        <div className="w-full max-w-md space-y-8">
-          {/* TheMealDB section */}
-          <section>
-            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-400">
-              <span className="h-px flex-1 bg-slate-700" />
-              TheMealDB
-              <span className="h-px flex-1 bg-slate-700" />
-            </h2>
-            {mealdbResults.length === 0 ? (
-              <p className="rounded-xl bg-slate-800 p-5 text-center text-sm text-slate-400">
-                No TheMealDB results for &ldquo;{query}&rdquo;
-              </p>
-            ) : (
-              <div className="space-y-4">
-                {mealdbResults.slice(0, 5).map((meal) => (
-                  <MealDBCard key={meal.idMeal} meal={meal} searchQuery={query} />
-                ))}
-              </div>
-            )}
-          </section>
+      {!loading && mealdbResults.length > 0 && (
+        <section className="w-full max-w-md space-y-4">
+          <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-400">
+            <span className="h-px flex-1 bg-slate-700" />
+            TheMealDB
+            <span className="h-px flex-1 bg-slate-700" />
+          </h2>
+          {mealdbResults.slice(0, 5).map((meal) => (
+            <MealDBCard key={meal.idMeal} meal={meal} searchQuery={query} />
+          ))}
+        </section>
+      )}
 
-          {/* Edamam section */}
-          <section>
-            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-400">
-              <span className="h-px flex-1 bg-slate-700" />
-              Edamam
-              <span className="h-px flex-1 bg-slate-700" />
-            </h2>
-            {edamamError ? (
-              <div className="rounded-xl bg-slate-800 p-5 text-center text-sm text-amber-400">
-                {edamamError}
-              </div>
-            ) : edamamResults.length === 0 ? (
-              <p className="rounded-xl bg-slate-800 p-5 text-center text-sm text-slate-400">
-                No Edamam results for &ldquo;{query}&rdquo;
+      {showFallback && (
+        <section className="w-full max-w-md space-y-4">
+          <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-400">
+            <span className="h-px flex-1 bg-slate-700" />
+            No TheMealDB results — trying AllRecipes…
+            <span className="h-px flex-1 bg-slate-700" />
+          </h2>
+
+          {loadingFallback && (
+            <div className="flex items-center justify-center gap-3 py-8 text-slate-400">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
+              <span>Searching AllRecipes…</span>
+            </div>
+          )}
+
+          {!loadingFallback && fallbackResults.length > 0 &&
+            fallbackResults.map((recipe, i) => (
+              <AllRecipesCard
+                key={`${recipe.url}-${i}`}
+                recipe={recipe}
+                searchQuery={query}
+              />
+            ))
+          }
+
+          {!loadingFallback && fallbackResults.length === 0 && (
+            <div className="rounded-xl bg-slate-800 p-5 text-center space-y-3">
+              <p className="text-sm text-slate-400">
+                No recipes found for &ldquo;{query}&rdquo;
               </p>
-            ) : (
-              <div className="space-y-4">
-                {edamamResults.slice(0, 5).map((hit, i) => (
-                  <EdamamCard
-                    key={`${hit.recipe.label}-${i}`}
-                    recipe={hit.recipe}
-                    searchQuery={query}
-                  />
-                ))}
-              </div>
-            )}
-          </section>
-        </div>
+              <YouTubeButton query={query} label="Search YouTube instead" />
+            </div>
+          )}
+        </section>
       )}
     </main>
   );

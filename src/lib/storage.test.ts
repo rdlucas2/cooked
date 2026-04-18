@@ -58,7 +58,7 @@ describe("favorites", () => {
   const base = {
     id: "meal-1",
     title: "Spaghetti Bolognese",
-    source: "themealdb" as const,
+    source: "allrecipes" as const,
     thumbnail: "https://example.com/img.jpg",
   };
 
