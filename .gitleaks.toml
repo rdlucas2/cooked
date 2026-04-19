@@ -1,7 +1,7 @@
 # gitleaks configuration
 # Docs: https://github.com/gitleaks/gitleaks#configuration
 
-title = "jobregator gitleaks config"
+title = "cooked gitleaks config"
 
 [extend]
 # Extend the default ruleset
